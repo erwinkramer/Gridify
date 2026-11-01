@@ -30,7 +30,8 @@ public class LinqQueryBuilder<T> : BaseQueryBuilder<Expression<Func<T, bool>>, T
                   value,
                   op,
                   gMap.Convertor,
-                  true);
+                  true,
+                  gMap.CaseInsensitive);
 
                if (conditionExp is not LambdaExpression lambdaExp) return null;
 
@@ -182,10 +183,29 @@ public class LinqQueryBuilder<T> : BaseQueryBuilder<Expression<Func<T, bool>>, T
             be = GetLessThanOrEqualExpression(body, valueExpression, value);
             break;
          case SyntaxKind.Like:
-            be = Expression.Call(body, MethodInfoHelper.GetStringContainsMethod(), GetValueExpression(body.Type, value));
+            if (body.Type != typeof(string))
+            {
+               body = Expression.Call(body, MethodInfoHelper.GetToStringMethod());
+               be = Expression.Call(body, MethodInfoHelper.GetStringContainsMethod(), GetValueExpression(body.Type, value?.ToString()));
+            }
+            else
+            {
+               be = Expression.Call(body, MethodInfoHelper.GetStringContainsMethod(), GetValueExpression(body.Type, value));
+            }
+
             break;
          case SyntaxKind.NotLike:
-            be = Expression.Not(Expression.Call(body, MethodInfoHelper.GetStringContainsMethod(), GetValueExpression(body.Type, value)));
+            if (body.Type != typeof(string))
+            {
+               body = Expression.Call(body, MethodInfoHelper.GetToStringMethod());
+               be = Expression.Not(Expression.Call(body, MethodInfoHelper.GetStringContainsMethod(),
+                  GetValueExpression(body.Type, value?.ToString())));
+            }
+            else
+            {
+               be = Expression.Not(Expression.Call(body, MethodInfoHelper.GetStringContainsMethod(), GetValueExpression(body.Type, value)));
+            }
+
             break;
          case SyntaxKind.StartsWith:
             if (body.Type != typeof(string))
@@ -272,7 +292,7 @@ public class LinqQueryBuilder<T> : BaseQueryBuilder<Expression<Func<T, bool>>, T
             case MethodCallExpression { Method.Name: "Select" } selectExp:
             {
                var targetExp = selectExp.Arguments.Single(a => a.NodeType == ExpressionType.Lambda) as LambdaExpression;
-               var conditionExp = BuildQuery(targetExp!.Body, targetExp.Parameters[0], value, op, gMap.Convertor, true);
+               var conditionExp = BuildQuery(targetExp!.Body, targetExp.Parameters[0], value, op, gMap.Convertor, true, gMap.CaseInsensitive);
 
                if (conditionExp is not LambdaExpression lambdaExp) return null;
 
