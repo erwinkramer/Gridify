@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Reflection;
 #if NET
 using System.Diagnostics.CodeAnalysis;
@@ -12,13 +13,22 @@ namespace Gridify.Reflection;
 /// keep the generic method bodies of <c>Enumerable.Any</c>, <c>Enumerable.Contains</c> and
 /// <c>Enumerable.Select</c> in trimmed and native AOT builds, so that <c>MakeGenericMethod</c>
 /// can (re)instantiate them at runtime.
+///
+/// The non-generic getters resolve their <see cref="MethodInfo"/> from static expression trees
+/// (instead of string-based reflection), which is allowed in trimmed and native AOT builds.
 /// </summary>
 public static class MethodInfoHelper
 {
+   /// <summary>
+   /// Returns the method of the first method call in <paramref name="call"/>.
+   /// The call is never invoked; it only exists so the compiler resolves the
+   /// <see cref="MethodInfo"/> statically (AOT-safe, unlike <c>Type.GetMethod(string)</c>).
+   /// </summary>
+   private static MethodInfo MethodOf<TArg, TResult>(Expression<Func<TArg, TResult>> call)
+      => ((MethodCallExpression)call.Body).Method;
+
    public static MethodInfo GetToLowerMethod()
-   {
-      return typeof(string).GetMethod("ToLower", [])!;
-   }
+      => MethodOf<string, string>(s => s.ToLower());
 
 #if NET
    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(Enumerable))]
@@ -31,19 +41,13 @@ public static class MethodInfoHelper
    }
 
    public static MethodInfo GetEndsWithMethod()
-   {
-      return typeof(string).GetMethod("EndsWith", [typeof(string)])!;
-   }
+      => MethodOf<string, bool>(s => s.EndsWith(string.Empty));
 
    public static MethodInfo GetStartWithMethod()
-   {
-      return typeof(string).GetMethod("StartsWith", [typeof(string)])!;
-   }
+      => MethodOf<string, bool>(s => s.StartsWith(string.Empty));
 
    public static MethodInfo GetStringContainsMethod()
-   {
-      return typeof(string).GetMethod("Contains", [typeof(string)])!;
-   }
+      => MethodOf<string, bool>(s => s.Contains(string.Empty));
 
 #if NET
    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(Enumerable))]
@@ -54,24 +58,16 @@ public static class MethodInfoHelper
    }
 
    public static MethodInfo GetIsNullOrEmptyMethod()
-   {
-      return typeof(string).GetMethod("IsNullOrEmpty", [typeof(string)])!;
-   }
+      => MethodOf<string, bool>(s => string.IsNullOrEmpty(s));
 
    public static MethodInfo GetCompareMethodWithStringComparison()
-   {
-      return typeof(string).GetMethod("Compare", [typeof(string), typeof(string), typeof(StringComparison)])!;
-   }
+      => MethodOf<string, int>(s => string.Compare(s, string.Empty, StringComparison.Ordinal));
 
    public static MethodInfo GetCompareMethod()
-   {
-      return typeof(string).GetMethod("Compare", [typeof(string), typeof(string)])!;
-   }
+      => MethodOf<string, int>(s => string.Compare(s, string.Empty));
 
    public static MethodInfo GetToStringMethod()
-   {
-      return typeof(object).GetMethod("ToString")!;
-   }
+      => MethodOf<object, string>(o => o.ToString());
 
 #if NET
    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(Enumerable))]
