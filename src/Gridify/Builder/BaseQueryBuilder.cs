@@ -220,7 +220,7 @@ public abstract class BaseQueryBuilder<TQuery, T>(IGridifyMapper<T> mapper)
          && methodExp.Arguments.Count == 1)
       {
          var call = Expression.Call(methodExp.Method!, nullPropagatedExpression!.Body);
-         return Expression.Lambda(call, mainQuery.Parameters);
+         return LambdaFactory.Lambda(call, mainQuery.Parameters);
       }
 
       var body = mainQuery.Body;
@@ -234,7 +234,7 @@ public abstract class BaseQueryBuilder<TQuery, T>(IGridifyMapper<T> mapper)
          return query;
       }
       var newExp = Expression.Call(bExp.Method!, nullPropagatedExpression.Body, bExp.Right);
-      return Expression.Lambda(newExp, mainQuery.Parameters);
+      return LambdaFactory.Lambda(newExp, mainQuery.Parameters);
    }
 
    private object AddIndexerNullCheck(LambdaExpression mapTarget, object query)
@@ -249,12 +249,15 @@ public abstract class BaseQueryBuilder<TQuery, T>(IGridifyMapper<T> mapper)
       if (body is not MethodCallExpression methodCallExpression) return query;
       if (methodCallExpression.Object is null) return query;
 
+      // Dictionary types come from the user's model; ContainsKey is standard BCL API kept by trimming/AOT
+#pragma warning disable IL2075, IL2062
       var containsKeyMethod = methodCallExpression.Object!.Type.GetMethod("ContainsKey", [mapTarget.Parameters[1].Type]);
       if (containsKeyMethod == null) return query;
       var mainQuery = (LambdaExpression)query;
       var keyNullCheck = Expression.Call(methodCallExpression.Object!, containsKeyMethod, methodCallExpression.Arguments);
+#pragma warning restore IL2075, IL2062
       var newExp = Expression.AndAlso(keyNullCheck, mainQuery.Body);
-      return Expression.Lambda(newExp, mainQuery.Parameters);
+      return LambdaFactory.Lambda(newExp, mainQuery.Parameters);
    }
 
 
@@ -291,8 +294,11 @@ public abstract class BaseQueryBuilder<TQuery, T>(IGridifyMapper<T> mapper)
          // handle broken guids,  github issue #2
          else if (body.Type == typeof(Guid) && !Guid.TryParse(strValue, out _)) value = Guid.NewGuid().ToString();
 
+         // TypeDescriptor looks up TypeConverter attributes registered on arbitrary runtime types
+#pragma warning disable IL2026, IL2072
          var converter = TypeDescriptor.GetConverter(body.Type);
          if (converter.CanConvertFrom(typeof(string)))
+#pragma warning restore IL2026, IL2072
             try
             {
                value = converter.ConvertFromString(value.ToString()!);
@@ -347,11 +353,14 @@ public abstract class BaseQueryBuilder<TQuery, T>(IGridifyMapper<T> mapper)
    private static LambdaExpression UpdateIndexerKey(LambdaExpression exp, string key)
    {
       var type = exp.Parameters[1].Type;
+      // TypeDescriptor looks up TypeConverter attributes registered on arbitrary runtime types
+#pragma warning disable IL2026, IL2072
       var newValue = type == typeof(string)
          ? Expression.Constant(key, typeof(string))
          : Expression.Constant(TypeDescriptor.GetConverter(type).ConvertFromString(key), type);
+#pragma warning restore IL2026, IL2072
 
       var body = new ReplaceExpressionVisitor(exp.Parameters[1], newValue).Visit(exp.Body);
-      return Expression.Lambda(body, exp.Parameters);
+      return LambdaFactory.Lambda(body, exp.Parameters);
    }
 }

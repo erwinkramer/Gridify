@@ -94,15 +94,11 @@ public static partial class GridifyExtensions
       if (expression.Body is not UnaryExpression body) return isSortAsc ? query.OrderBy(expression) : query.OrderByDescending(expression);
 
       if (body.Operand is MemberExpression memberExpression)
-         return
-            (IOrderedQueryable<T>)
-            query.Provider.CreateQuery(
-               Expression.Call(
-                  typeof(Queryable),
-                  isSortAsc ? "OrderBy" : "OrderByDescending",
-                  [typeof(T), memberExpression.Type],
-                  query.Expression,
-                  Expression.Lambda(memberExpression, expression.Parameters)));
+      {
+         var sortExpr = LambdaFactory.Lambda(memberExpression, expression.Parameters);
+         var sortMethod = MethodInfoHelper.GetQueryableMethod(isSortAsc ? "OrderBy" : "OrderByDescending", typeof(T), memberExpression.Type);
+         return (IOrderedQueryable<T>)query.Provider.CreateQuery(Expression.Call(sortMethod, query.Expression, sortExpr));
+      }
 
       return isSortAsc ? query.OrderBy(expression) : query.OrderByDescending(expression);
    }
@@ -144,15 +140,11 @@ public static partial class GridifyExtensions
    {
       if (expression.Body is not UnaryExpression body) return isSortAsc ? query.ThenBy(expression) : query.ThenByDescending(expression);
       if (body.Operand is MemberExpression memberExpression)
-         return
-            (IOrderedQueryable<T>)
-            query.Provider.CreateQuery(
-               Expression.Call(
-                  typeof(Queryable),
-                  isSortAsc ? "ThenBy" : "ThenByDescending",
-                  [typeof(T), memberExpression.Type],
-                  query.Expression,
-                  Expression.Lambda(memberExpression, expression.Parameters)));
+      {
+         var sortExpr = LambdaFactory.Lambda(memberExpression, expression.Parameters);
+         var sortMethod = MethodInfoHelper.GetQueryableMethod(isSortAsc ? "ThenBy" : "ThenByDescending", typeof(T), memberExpression.Type);
+         return (IOrderedQueryable<T>)query.Provider.CreateQuery(Expression.Call(sortMethod, query.Expression, sortExpr));
+      }
 
       return isSortAsc ? query.ThenBy(expression) : query.ThenByDescending(expression);
    }
@@ -731,8 +723,12 @@ public static partial class GridifyExtensions
       try
       {
          if (entityFrameworkCompatibilityLayer)
-            // this also warms the type cache that the query builder is about to use
+         {
+            // this also warms the type cache that the query builder is about to use (reflection emit)
+#pragma warning disable IL2026, IL3050
             GridifyTypeBuilder.CreateNewObject(body.Type, EntityFrameworkValueFieldName, value);
+#pragma warning restore IL2026, IL3050
+         }
          else
             Expression.Constant(value, body.Type);
 
@@ -863,9 +859,11 @@ public static partial class GridifyExtensions
             return false;
          }
 
-         // Use TypeConverter for all other types
+         // Use TypeConverter for all other types; looks up TypeConverter attributes on arbitrary runtime types
+#pragma warning disable IL2026, IL2067
          var converter = TypeDescriptor.GetConverter(targetType);
          if (converter.CanConvertFrom(typeof(string)))
+#pragma warning restore IL2026, IL2067
          {
             // Attempt the actual conversion to validate
             converter.ConvertFromString(null, CultureInfo.InvariantCulture, value);

@@ -9,8 +9,11 @@ public static class SimpleTypeHelper
    public static bool IsCollection(this Type type, out Type? itemType)
    {
       itemType = null;
-      Type genericType = type;  
-      if ((type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IEnumerable<>)) || (type != typeof(string) && type.GetInterfaces().Any(i => {
+      Type genericType = type;
+      // Enumerates the interface hierarchy of an arbitrary runtime type; interface metadata is kept by trimming/AOT
+#pragma warning disable IL2070
+      if ((type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IEnumerable<>)) || (type != typeof(string) && type.GetInterfaces().Any(i =>
+      {
          if (i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEnumerable<>))
          {
             genericType = i;
@@ -18,6 +21,7 @@ public static class SimpleTypeHelper
          }
          return false;
       })))
+#pragma warning restore IL2070
       {
          var arguments = genericType.GetGenericArguments();
          if (arguments.Length == 1)

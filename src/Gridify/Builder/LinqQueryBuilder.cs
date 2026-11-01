@@ -69,8 +69,7 @@ public class LinqQueryBuilder<T> : BaseQueryBuilder<Expression<Func<T, bool>>, T
 
    protected override Expression<Func<T, bool>> BuildAlwaysFalseQuery(ParameterExpression parameter)
    {
-      var expression = Expression.Lambda(Expression.Constant(false), parameter) as Expression<Func<T, bool>>;
-      return expression!;
+      return LambdaFactory.Lambda<Func<T, bool>>(Expression.Constant(false), parameter);
    }
 
    protected override Expression<Func<T, bool>>? CheckIfCanMergeQueries(
@@ -101,7 +100,7 @@ public class LinqQueryBuilder<T> : BaseQueryBuilder<Expression<Func<T, bool>>, T
                _ => throw new InvalidOperationException()
             };
 
-            var mergedLambda = Expression.Lambda(mergedExpression, leftLambda.Parameters);
+            var mergedLambda = LambdaFactory.Lambda(mergedExpression, leftLambda.Parameters);
             return GetAnyExpression(leftMember, mergedLambda) as Expression<Func<T, bool>>;
          }
       }
@@ -271,7 +270,7 @@ public class LinqQueryBuilder<T> : BaseQueryBuilder<Expression<Func<T, bool>>, T
             return null;
       }
 
-      return Expression.Lambda(be, parameter);
+      return LambdaFactory.Lambda(be, parameter);
    }
 
    protected override Expression<Func<T, bool>> CombineWithAndOperator(Expression<Func<T, bool>> left, Expression<Func<T, bool>> right)
@@ -396,7 +395,7 @@ public class LinqQueryBuilder<T> : BaseQueryBuilder<Expression<Func<T, bool>>, T
       {
          var selectParam = Expression.Parameter(tp, "x");
          var toLowerCall = Expression.Call(selectParam, MethodInfoHelper.GetToLowerMethod());
-         var selectLambda = Expression.Lambda(toLowerCall, selectParam);
+         var selectLambda = LambdaFactory.Lambda(toLowerCall, selectParam);
          var selectMethod = MethodInfoHelper.GetSelectMethod(tp, typeof(string));
          collectionExp = Expression.Call(selectMethod, prop, selectLambda);
       }
@@ -408,7 +407,7 @@ public class LinqQueryBuilder<T> : BaseQueryBuilder<Expression<Func<T, bool>>, T
          containsExp = Expression.Not(containsExp);
          // issue #204 we need to add or null check as well for Not Contains
          containsExp = Expression.OrElse(Expression.Equal(prop, Expression.Constant(null)), containsExp);
-         return Expression.Lambda(containsExp, param);
+         return LambdaFactory.Lambda(containsExp, param);
       }
       return GetExpressionWithNullCheck(prop, param, containsExp);
    }
@@ -427,12 +426,15 @@ public class LinqQueryBuilder<T> : BaseQueryBuilder<Expression<Func<T, bool>>, T
 
    private static MemberExpression GetPropertyOrField(MemberExpression member, ParameterExpression param)
    {
+      // Member names come from the mapper; the metadata is present under AOT/trimming
+#pragma warning disable IL2026
       return member.Expression switch
       {
          ParameterExpression => Expression.PropertyOrField(param, member.Member.Name),
          MemberExpression subExp => Expression.PropertyOrField(GetPropertyOrField(subExp, param), member.Member.Name),
          _ => throw new InvalidOperationException($"Invalid expression '{member.Expression}'")
       };
+#pragma warning restore IL2026
    }
 
    private LambdaExpression GetAnyExpression(MemberExpression member, Expression predicate)
@@ -457,11 +459,13 @@ public class LinqQueryBuilder<T> : BaseQueryBuilder<Expression<Func<T, bool>>, T
       // Entityframework doesn't support NullChecking for Collections (issue #58)
       // also issue #70 for NHibernate - and #173
       if (_mapper.Configuration.DisableCollectionNullChecks || _mapper.Configuration.EntityFrameworkCompatibilityLayer)
-         return Expression.Lambda(right, param);
+      {
+         return LambdaFactory.Lambda(right, param);
+      }
 
       var nullChecker = Expression.NotEqual(prop, Expression.Constant(null));
       var exp = Expression.AndAlso(nullChecker, right);
-      return Expression.Lambda(exp, param);
+      return LambdaFactory.Lambda(exp, param);
    }
 
    private Expression GetValueExpression(Type type, object? value)
@@ -470,9 +474,14 @@ public class LinqQueryBuilder<T> : BaseQueryBuilder<Expression<Func<T, bool>>, T
          return Expression.Constant(value, type);
 
       // active parameterized query for EF
+      // The parameter object is emitted at runtime via reflection emit (GridifyTypeBuilder)
+      // only when the EF compatibility layer is enabled, so the expression building below
+      // cannot be statically analyzed.
       const string fieldName = "Value";
+#pragma warning disable IL2026, IL2067, IL3050
       var (instance, type1) = GridifyTypeBuilder.CreateNewObject(type, fieldName, value);
       return Expression.PropertyOrField(Expression.Constant(instance, type1), fieldName);
+#pragma warning restore IL2026, IL2067, IL3050
    }
 
    private BinaryExpression GetLessThanOrEqualExpression(Expression body, ValueExpressionSyntax valueExpression, object? value)

@@ -3,6 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 
+#if NET
+using System.Diagnostics.CodeAnalysis;
+#endif
+
 namespace Gridify;
 
 public interface IQueryBuilder<T>
@@ -159,7 +163,11 @@ public interface IQueryBuilder<T>
    /// // Uses AddressMapper and merges mappings: "city=London", "country=UK"
    /// </code>
    /// </example>
+#if NET
+   IQueryBuilder<T> AddNestedMapper<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] TMapper>(
+#else
    IQueryBuilder<T> AddNestedMapper<TMapper>(
+#endif
       Expression<Func<T, object>> propertyExpression,
       bool overrideIfExists = true)
       where TMapper : new();
@@ -189,7 +197,11 @@ public interface IQueryBuilder<T>
    /// // Uses AddressMapper with prefix: "location.city=London", "location.country=UK"
    /// </code>
    /// </example>
+#if NET
+   IQueryBuilder<T> AddNestedMapper<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] TMapper>(
+#else
    IQueryBuilder<T> AddNestedMapper<TMapper>(
+#endif
       string prefix,
       Expression<Func<T, object>> propertyExpression,
       bool overrideIfExists = true)
@@ -216,6 +228,10 @@ public interface IQueryBuilder<T>
    /// Creates an compiled evaluator delegate that can be use to evaluate an enumerable collection
    /// </summary>
    /// <returns>A delegate as type <![CDATA[Func<IEnumerable<T>, bool>]]></returns>
+#if NET
+   [RequiresDynamicCode("Compiles the filtering expression into an in-memory delegate")]
+   [RequiresUnreferencedCode("In-memory compiled evaluation requires unreferenced LINQ code")]
+#endif
    Func<IEnumerable<T>, bool> BuildCompiledEvaluator();
 
    /// <summary>
@@ -230,6 +246,10 @@ public interface IQueryBuilder<T>
    /// </summary>
    /// <param name="collection"></param>
    /// <returns></returns>
+#if NET
+   [RequiresDynamicCode("Runs the in-memory compiled evaluator")]
+   [RequiresUnreferencedCode("In-memory compiled evaluation requires unreferenced LINQ code")]
+#endif
    bool Evaluate(IEnumerable<T> collection);
 
    /// <summary>
@@ -255,6 +275,10 @@ public interface IQueryBuilder<T>
    /// </code>
    /// </example>
    /// <returns>A delegate as type <![CDATA[Func<IEnumerable<T>, IEnumerable<T>>]]></returns>
+#if NET
+   [RequiresDynamicCode("Compiles the filtering expression and applies ordering in-memory")]
+   [RequiresUnreferencedCode("In-memory evaluation via AsQueryable requires unreferenced LINQ code")]
+#endif
    Func<IEnumerable<T>, IEnumerable<T>> BuildCompiled();
 
    /// <summary>
@@ -277,6 +301,10 @@ public interface IQueryBuilder<T>
    /// </code>
    /// </example>
    /// <returns><![CDATA[IEnumerable<T>]]></returns>
+#if NET
+   [RequiresDynamicCode("Compiles the filtering expression and applies ordering in-memory")]
+   [RequiresUnreferencedCode("In-memory evaluation via AsQueryable requires unreferenced LINQ code")]
+#endif
    IEnumerable<T> Build(IEnumerable<T> collection);
 
    /// <summary>
@@ -291,6 +319,10 @@ public interface IQueryBuilder<T>
    /// </code>
    /// </example>
    /// <returns><![CDATA[Paging<T>]]></returns>
+#if NET
+   [RequiresDynamicCode("Applies the query in-memory via AsQueryable")]
+   [RequiresUnreferencedCode("In-memory evaluation via AsQueryable requires unreferenced LINQ code")]
+#endif
    Paging<T> BuildWithPaging(IEnumerable<T> collection);
 
    /// <summary>
@@ -362,5 +394,9 @@ public interface IQueryBuilder<T>
    /// </code>
    /// </example>
    /// <returns><![CDATA[ Func<IQueryable<T>,Paging<T>> ]]></returns>
+#if NET
+   [RequiresDynamicCode("Compiles the filtering expression and applies ordering in-memory")]
+   [RequiresUnreferencedCode("In-memory evaluation via AsQueryable requires unreferenced LINQ code")]
+#endif
    Func<IEnumerable<T>, Paging<T>> BuildWithPagingCompiled();
 }

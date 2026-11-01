@@ -5,6 +5,9 @@ using System.Linq.Expressions;
 using System.Reflection;
 using Gridify.Reflection;
 using Gridify.Syntax;
+#if NET
+using System.Diagnostics.CodeAnalysis;
+#endif
 
 namespace Gridify;
 
@@ -77,6 +80,9 @@ public class GridifyMapper<T> : IGridifyMapper<T>
 
    private void GenerateMappingsRecursive(Type type, string prefix, ushort maxNestingDepth, ushort currentDepth)
    {
+      // Reads public properties of an arbitrary runtime type by name; under AOT/trimming the metadata
+      // is present and the generated expressions are meant for query providers that translate them.
+#pragma warning disable IL2070, IL2067
       foreach (var item in type.GetProperties())
       {
          var propertyName = char.ToLowerInvariant(item.Name[0]) + item.Name.Substring(1); // camel-case name
@@ -102,6 +108,7 @@ public class GridifyMapper<T> : IGridifyMapper<T>
 
          _mappings.Add(new GMap<T>(fullName, CreateExpression(fullName)!));
       }
+#pragma warning restore IL2070, IL2067
    }
 
    public IGridifyMapper<T> AddMap(string from, Expression<Func<T, object?>> to, Func<string, object>? convertor = null!,
@@ -207,7 +214,13 @@ public class GridifyMapper<T> : IGridifyMapper<T>
    }
 
    // Overload 3: Generic without prefix - accepts custom mapper class and merges directly
-   public IGridifyMapper<T> AddNestedMapper<TMapper>(
+   public IGridifyMapper<T> AddNestedMapper
+#if NET
+      <[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] TMapper>
+#else
+      <TMapper>
+#endif
+      (
       Expression<Func<T, object>> propertyExpression,
       bool overrideIfExists = true)
       where TMapper : new()
@@ -219,7 +232,13 @@ public class GridifyMapper<T> : IGridifyMapper<T>
    }
 
    // Overload 4: Generic with prefix - accepts custom mapper class
-   public IGridifyMapper<T> AddNestedMapper<TMapper>(
+   public IGridifyMapper<T> AddNestedMapper
+#if NET
+      <[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] TMapper>
+#else
+      <TMapper>
+#endif
+      (
       string prefix,
       Expression<Func<T, object>> propertyExpression,
       bool overrideIfExists = true)
@@ -235,7 +254,13 @@ public class GridifyMapper<T> : IGridifyMapper<T>
       return AddNestedMapperWithMapperType<TMapper>(propertyExpression, prefix, overrideIfExists);
    }
 
-   private IGridifyMapper<T> AddNestedMapperWithMapperType<TMapper>(
+   private IGridifyMapper<T> AddNestedMapperWithMapperType
+#if NET
+      <[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] TMapper>
+#else
+      <TMapper>
+#endif
+      (
       Expression<Func<T, object>> propertyExpression,
       string? prefix,
       bool overrideIfExists)
@@ -268,6 +293,7 @@ public class GridifyMapper<T> : IGridifyMapper<T>
 
       // Reconstruct the expression with the correct type (Expression<Func<T, TProperty>>)
       var parameter = propertyExpression.Parameters[0];
+#pragma warning disable IL3050 // Runtime generic construction/instantiation of Func<,> and AddNestedMapperInternal
       var funcType = typeof(Func<,>).MakeGenericType(typeof(T), propertyType);
       var typedLambda = Expression.Lambda(funcType, body, parameter);
 
@@ -281,8 +307,14 @@ public class GridifyMapper<T> : IGridifyMapper<T>
       method = method.MakeGenericMethod(propertyType);
 
       return (IGridifyMapper<T>)method.Invoke(this, [typedLambda, nestedMapper, prefix, overrideIfExists])!;
+#pragma warning restore IL3050
    }
 
+   // Keeps the generic method body available at runtime so MakeGenericMethod can
+   // instantiate it for arbitrary property types (AOT deferred instantiation / trimming).
+#if NET
+   [DynamicDependency(DynamicallyAccessedMemberTypes.All, "Gridify.GridifyMapper`1", "Gridify")]
+#endif
    private IGridifyMapper<T> AddNestedMapperInternal<TProperty>(
       Expression<Func<T, TProperty>> propertyExpression,
       IGridifyMapper<TProperty> nestedMapper,
@@ -502,7 +534,7 @@ public class GridifyMapper<T> : IGridifyMapper<T>
 
       var selectMethod = genericType!.GetSelectMethod();
       var predicateParameter = Expression.Parameter(genericType!);
-      var predicate = Expression.Lambda(predicateParameter, predicateParameter);
+      var predicate = LambdaFactory.Lambda(predicateParameter, predicateParameter);
       //  Param_x.Name.Select(fc => fc)
       var body = Expression.Call(selectMethod, mapProperty, predicate);
       return Expression.Lambda<Func<T, object>>(body, parameter);
@@ -510,6 +542,9 @@ public class GridifyMapper<T> : IGridifyMapper<T>
 
    private static Expression CreatePropertyAccessExpression(Expression expression, string propertyName)
    {
+      // Builds property-access expressions from string-based mapping names; the member metadata is
+      // present under AOT/trimming and the expressions target query providers that translate them.
+#pragma warning disable IL2026, IL2070
       if (
          (expression is MemberExpression { Member: PropertyInfo propertyInfo } &&
           propertyInfo.PropertyType.IsComplexTypeCollection(out var itemType) ||
@@ -529,9 +564,9 @@ public class GridifyMapper<T> : IGridifyMapper<T>
             propertyType = propItemType;
          }
 
-         var predicate = Expression.Lambda(Expression.Property(predicateParameter, propertyName), predicateParameter);
-         var selectMethod = typeof(Enumerable).GetMethods().First(m => m.Name.Equals(selectFunction, StringComparison.InvariantCulture))
-            .MakeGenericMethod([itemType, propertyType]);
+         var predicate = LambdaFactory.Lambda(Expression.Property(predicateParameter, propertyName), predicateParameter);
+         var genericSelectMethod = typeof(Enumerable).GetMethods().First(m => m.Name.Equals(selectFunction, StringComparison.InvariantCulture));
+         var selectMethod = MethodInfoHelper.CreateGenericMethod(genericSelectMethod, itemType, propertyType);
 
          var selectExpression = Expression.Call(selectMethod, expression, predicate);
 
@@ -539,5 +574,6 @@ public class GridifyMapper<T> : IGridifyMapper<T>
       }
 
       return Expression.Property(expression, propertyName);
+#pragma warning restore IL2026, IL2070
    }
 }

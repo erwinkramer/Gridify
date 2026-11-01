@@ -1,5 +1,6 @@
 using System;
 using System.Linq.Expressions;
+using Gridify.Reflection;
 using Gridify.Syntax;
 
 namespace Gridify.Builder;
@@ -42,7 +43,7 @@ public static partial class PredicateBuilder
       var rightVisitor = new ReplaceExpressionVisitor(expr2.Parameters[0], parameter);
       var right = rightVisitor.Visit(expr2.Body);
 
-      return Expression.Lambda(Expression.AndAlso(left!, right!), parameter);
+      return LambdaFactory.Lambda(Expression.AndAlso(left!, right!), parameter);
    }
 
    public static LambdaExpression Or(this LambdaExpression expr1, LambdaExpression expr2)
@@ -55,6 +56,6 @@ public static partial class PredicateBuilder
       var rightVisitor = new ReplaceExpressionVisitor(expr2.Parameters[0], parameter);
       var right = rightVisitor.Visit(expr2.Body);
 
-      return Expression.Lambda(Expression.OrElse(left!, right!), parameter);
+      return LambdaFactory.Lambda(Expression.OrElse(left!, right!), parameter);
    }
 }

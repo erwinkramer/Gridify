@@ -18,6 +18,10 @@ public static class DependencyInjectionExtensions
    public static IServiceCollection AddGridifyMappers(this IServiceCollection services, Assembly assembly,
        ServiceLifetime lifetime = ServiceLifetime.Singleton)
    {
+      // Reflection over runtime types: Assembly.GetTypes works in AOT/trimmed apps (type metadata is kept),
+      // MakeGenericType here only builds the IGridifyMapper<T> interface type (no IL is emitted), and
+      // DI requires the mapper types' public constructors which are preserved when the types are registered.
+#pragma warning disable IL2026, IL3050, IL2072
       var targetTypes = assembly.GetTypes()
          .Where(type =>
             type is { IsAbstract: false, IsGenericTypeDefinition: false, BaseType.IsGenericType: true, BaseType.Namespace: nameof(Gridify) } &&
@@ -31,6 +35,7 @@ public static class DependencyInjectionExtensions
          var interfaceType = typeof(IGridifyMapper<>).MakeGenericType(targetType);
          services.Add(new ServiceDescriptor(interfaceType, type, lifetime));
       }
+#pragma warning restore IL2026, IL3050, IL2072
 
       return services;
    }

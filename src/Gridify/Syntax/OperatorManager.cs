@@ -3,6 +3,9 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+#if NET
+using System.Diagnostics.CodeAnalysis;
+#endif
 
 namespace Gridify.Syntax;
 
@@ -11,7 +14,13 @@ public class OperatorManager
    private readonly ConcurrentDictionary<string, IGridifyOperator> _operators = new();
    public IEnumerable<IGridifyOperator> Operators => _operators.Values;
 
-   public void Register<TOperator>() where TOperator : IGridifyOperator
+   public void Register
+#if NET
+      <[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TOperator>
+#else
+      <TOperator>
+#endif
+      () where TOperator : IGridifyOperator
    {
       var gridifyOperator = (IGridifyOperator)Activator.CreateInstance(typeof(TOperator))!;
       Register(gridifyOperator);
@@ -31,7 +40,13 @@ public class OperatorManager
       var customOperator = new GridifyOperator(@operator, handler);
       _operators.TryAdd(@operator, customOperator);
    }
-   public void Remove<TOperator>() where TOperator : IGridifyOperator
+   public void Remove
+#if NET
+      <[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TOperator>
+#else
+      <TOperator>
+#endif
+      () where TOperator : IGridifyOperator
    {
       var gridifyOperator = (IGridifyOperator)Activator.CreateInstance(typeof(TOperator))!;
       Remove(gridifyOperator.GetOperator());

@@ -34,8 +34,11 @@ public class LinqSortingQueryBuilder<T>(IGridifyMapper<T>? mapper = null) : Base
                throw new GridifyOrderingException($"'{ordering.MemberName}' is not nullable type");
             }
 
+            // Nullable<T> member access by name; Nullable<T> metadata/IL is standard BCL kept by trimming/AOT
+#pragma warning disable IL2026
             var prop = unary.Operand as MemberExpression ?? Expression.Property(exp.Parameters[0], ordering.MemberName);
             var hasValue = Expression.PropertyOrField(prop, "HasValue");
+#pragma warning restore IL2026
 
             switch (ordering.OrderingType)
             {

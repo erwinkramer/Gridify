@@ -2,6 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
 
+#if NET
+using System.Diagnostics.CodeAnalysis;
+#endif
+
 namespace Gridify;
 
 public interface IGridifyMapper<T>
@@ -113,7 +117,11 @@ public interface IGridifyMapper<T>
    /// // Uses AddressMapper and merges mappings: "city=London", "country=UK"
    /// </code>
    /// </example>
+#if NET
+   IGridifyMapper<T> AddNestedMapper<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] TMapper>(
+#else
    IGridifyMapper<T> AddNestedMapper<TMapper>(
+#endif
       Expression<Func<T, object>> propertyExpression,
       bool overrideIfExists = true)
       where TMapper : new();
@@ -143,7 +151,11 @@ public interface IGridifyMapper<T>
    /// // Uses AddressMapper with prefix: "location.city=London", "location.country=UK"
    /// </code>
    /// </example>
+#if NET
+   IGridifyMapper<T> AddNestedMapper<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] TMapper>(
+#else
    IGridifyMapper<T> AddNestedMapper<TMapper>(
+#endif
       string prefix,
       Expression<Func<T, object>> propertyExpression,
       bool overrideIfExists = true)

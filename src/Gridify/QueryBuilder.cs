@@ -4,6 +4,9 @@ using System.Linq;
 using System.Linq.Expressions;
 using Gridify.Syntax;
 using Gridify.Builder;
+#if NET
+using System.Diagnostics.CodeAnalysis;
+#endif
 
 namespace Gridify;
 
@@ -183,7 +186,11 @@ public class QueryBuilder<T> : IQueryBuilder<T>
    }
 
    /// <inheritdoc />
+#if NET
+   public IQueryBuilder<T> AddNestedMapper<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] TMapper>(
+#else
    public IQueryBuilder<T> AddNestedMapper<TMapper>(
+#endif
       Expression<Func<T, object>> propertyExpression,
       bool overrideIfExists = true)
       where TMapper : new()
@@ -194,7 +201,11 @@ public class QueryBuilder<T> : IQueryBuilder<T>
    }
 
    /// <inheritdoc />
+#if NET
+   public IQueryBuilder<T> AddNestedMapper<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] TMapper>(
+#else
    public IQueryBuilder<T> AddNestedMapper<TMapper>(
+#endif
       string prefix,
       Expression<Func<T, object>> propertyExpression,
       bool overrideIfExists = true)
@@ -263,6 +274,10 @@ public class QueryBuilder<T> : IQueryBuilder<T>
       };
    }
 
+#if NET
+   [RequiresDynamicCode("Compiles the filtering expression into an in-memory delegate")]
+   [RequiresUnreferencedCode("In-memory compiled evaluation requires unreferenced LINQ code")]
+#endif
    /// <inheritdoc />
    public Func<IEnumerable<T>, bool> BuildCompiledEvaluator()
    {
@@ -283,6 +298,10 @@ public class QueryBuilder<T> : IQueryBuilder<T>
       return BuildEvaluator()(query);
    }
 
+#if NET
+   [RequiresDynamicCode("Runs the in-memory compiled evaluator")]
+   [RequiresUnreferencedCode("In-memory compiled evaluation requires unreferenced LINQ code")]
+#endif
    /// <inheritdoc />
    public bool Evaluate(IEnumerable<T> collection)
    {
@@ -312,6 +331,10 @@ public class QueryBuilder<T> : IQueryBuilder<T>
       return Build;
    }
 
+#if NET
+   [RequiresDynamicCode("Compiles the filtering expression and applies ordering in-memory via AsQueryable")]
+   [RequiresUnreferencedCode("In-memory evaluation via AsQueryable requires unreferenced LINQ code")]
+#endif
    /// <inheritdoc />
    public Func<IEnumerable<T>, IEnumerable<T>> BuildCompiled()
    {
@@ -331,6 +354,10 @@ public class QueryBuilder<T> : IQueryBuilder<T>
       };
    }
 
+#if NET
+   [RequiresDynamicCode("Compiles the filtering expression and applies ordering in-memory via AsQueryable")]
+   [RequiresUnreferencedCode("In-memory evaluation via AsQueryable requires unreferenced LINQ code")]
+#endif
    /// <inheritdoc />
    public IEnumerable<T> Build(IEnumerable<T> collection)
    {
@@ -346,6 +373,10 @@ public class QueryBuilder<T> : IQueryBuilder<T>
       return collection;
    }
 
+#if NET
+   [RequiresDynamicCode("Applies the query in-memory via AsQueryable")]
+   [RequiresUnreferencedCode("In-memory evaluation via AsQueryable requires unreferenced LINQ code")]
+#endif
    /// <inheritdoc />
    public Paging<T> BuildWithPaging(IEnumerable<T> collection)
    {
@@ -372,6 +403,10 @@ public class QueryBuilder<T> : IQueryBuilder<T>
       return BuildWithPaging;
    }
 
+#if NET
+   [RequiresDynamicCode("Compiles the filtering expression and applies ordering in-memory via AsQueryable")]
+   [RequiresUnreferencedCode("In-memory evaluation via AsQueryable requires unreferenced LINQ code")]
+#endif
    public Func<IEnumerable<T>, Paging<T>> BuildWithPagingCompiled()
    {
       var compiled = BuildFilteringExpression().Compile();

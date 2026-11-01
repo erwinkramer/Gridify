@@ -40,7 +40,11 @@ public class MemberNullPropagationVisitor : ExpressionVisitor
       if (IsNullable(type))
          return type;
 
+      // Builds the Nullable<T> type used in a null-propagating expression; only the type is
+      // constructed here, and Nullable<T> instantiations used by the model are kept by trimming/AOT
+#pragma warning disable IL3050
       return typeof(Nullable<>).MakeGenericType(type);
+#pragma warning restore IL3050
    }
 
    private static bool IsNullable(Type type)

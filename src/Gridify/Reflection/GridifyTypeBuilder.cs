@@ -1,5 +1,9 @@
 using System;
 using System.Collections.Concurrent;
+
+#if NET
+using System.Diagnostics.CodeAnalysis;
+#endif
 using System.Reflection;
 using System.Reflection.Emit;
 
@@ -9,6 +13,10 @@ public static class GridifyTypeBuilder
 {
    private static readonly ConcurrentDictionary<Type, TypeInfo> Cache = new();
 
+#if NET
+   [RequiresDynamicCode("Uses reflection emit (TypeBuilder) which is not AOT/trim compatible")]
+   [RequiresUnreferencedCode("Creates and activates an emitted type at runtime")]
+#endif
    public static (object? myObject, Type myType) CreateNewObject(Type type, string fieldName, object? value)
    {
       TypeInfo? myTypeInfo;
@@ -26,6 +34,10 @@ public static class GridifyTypeBuilder
       return (myObject, myType);
    }
 
+#if NET
+   [RequiresDynamicCode("Uses reflection emit (TypeBuilder) which is not AOT/trim compatible")]
+   [RequiresUnreferencedCode("Emits a new type at runtime")]
+#endif
    public static TypeInfo? CompileResultTypeInfo(Type type, string name)
    {
       var tb = GetTypeBuilder();
@@ -39,6 +51,10 @@ public static class GridifyTypeBuilder
       return objectTypeInfo;
    }
 
+#if NET
+   [RequiresDynamicCode("Defines a dynamic assembly via reflection emit")]
+   [RequiresUnreferencedCode("Defines a dynamic assembly via reflection emit")]
+#endif
    private static TypeBuilder GetTypeBuilder()
    {
       const string? typeSignature = "GridifyDisplayClass";
